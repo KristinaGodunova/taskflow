@@ -13,17 +13,23 @@ export const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!email.trim() || !password) {
       toast.error('Заполните все поля');
       return;
     }
 
     setIsSubmitting(true);
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(email.trim().toLowerCase(), password);
     setIsSubmitting(false);
 
     if (error) {
-      toast.error(error.message || 'Ошибка входа');
+      if (error.message.includes('Invalid login credentials')) {
+        toast.error('Неверный email или пароль. Убедитесь, что вы подтвердили почту по ссылке из письма.');
+      } else if (error.message.includes('Email not confirmed')) {
+        toast.error('Почта еще не подтверждена. Пожалуйста, перейдите по ссылке из письма.');
+      } else {
+        toast.error(error.message);
+      }
     } else {
       toast.success('Успешный вход!');
       navigate('/');
