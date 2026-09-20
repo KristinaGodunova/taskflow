@@ -31,12 +31,20 @@ interface TaskModalProps {
 }
 
 // Вспомогательная функция для перевода ISO-даты в локальный формат input datetime-local
-const toLocalInputFormat = (isoString?: string | null) => {
-  if (!isoString) return '';
-  const d = new Date(isoString);
+// Точный перевод даты в формат input datetime-local без сдвига часовых поясов
+const toLocalInputFormat = (dateStr?: string | null) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '';
-  const offset = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
 export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, onClose }) => {
@@ -236,7 +244,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
               </select>
             </div>
 
-            {/* Дедлайн с датой и точным временем */}
+            {/* Дедлайн с точным временем без сдвига */}
             <div>
               <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 mb-1.5">
                 <Calendar className="h-3.5 w-3.5 text-slate-500" />
@@ -244,7 +252,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
               </label>
               <input
                 type="datetime-local"
-                min={minDateTime}
+                min={toLocalInputFormat(new Date().toISOString())}
                 value={dueDate}
                 onChange={(e) => {
                   const val = e.target.value;
