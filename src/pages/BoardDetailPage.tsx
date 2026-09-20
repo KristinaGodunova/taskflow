@@ -25,6 +25,7 @@ import {
   deleteTask,
   updateTaskPosition,
   type ColumnWithTasks,
+  type TaskWithAssignee,
 } from '../services/boardDetail';
 import { getBoardMembers } from '../services/taskModal';
 import { ColumnContainer } from '../components/board/ColumnContainer';
@@ -32,8 +33,7 @@ import { TaskCard } from '../components/board/TaskCard';
 import { TaskModal } from '../components/task/TaskModal';
 import { InviteModal } from '../components/board/InviteModal';
 import { Navbar } from '../components/shared/Navbar';
-import type { Task } from '../types/database';
-import { ArrowLeft, Plus, Users, Search, Filter, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Users, Search, Filter, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 export const BoardDetailPage: React.FC = () => {
@@ -43,13 +43,13 @@ export const BoardDetailPage: React.FC = () => {
 
   useRealtimeBoard(boardId);
 
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [activeTask, setActiveTask] = useState<TaskWithAssignee | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [newColTitle, setNewColTitle] = useState('');
   const [isAddingCol, setIsAddingCol] = useState(false);
 
-  // Бонус: Фильтрация и поиск (Уровень 3)
+  // Поиск и фильтрация
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
 
@@ -70,7 +70,17 @@ export const BoardDetailPage: React.FC = () => {
     enabled: !!boardId,
   });
 
-  // Фильтрация колонок и задач по поисковому запросу и приоритету
+  // Автоматический поиск актуальной версии открытой задачи из свежего кэша
+  const currentSelectedTask = useMemo(() => {
+    if (!selectedTaskId || !boardData) return null;
+    for (const col of boardData.columns) {
+      const found = col.tasks.find((t) => t.id === selectedTaskId);
+      if (found) return found;
+    }
+    return null;
+  }, [selectedTaskId, boardData]);
+
+  // Фильтрация колонок и задач по поиску и приоритету
   const filteredColumns = useMemo(() => {
     if (!boardData?.columns) return [];
     return boardData.columns.map((col) => ({
@@ -128,8 +138,9 @@ export const BoardDetailPage: React.FC = () => {
     },
   });
 
+  // Drag & Drop
   const handleDragStart = (event: DragStartEvent) => {
-    const task = event.active.data.current?.task as Task;
+    const task = event.active.data.current?.task as TaskWithAssignee;
     if (task) setActiveTask(task);
   };
 
@@ -148,23 +159,23 @@ export const BoardDetailPage: React.FC = () => {
       let targetCol: ColumnWithTasks | undefined;
 
       for (const c of old.columns) {
-        if (c.tasks.some((t: Task) => t.id === activeId)) sourceCol = c;
-        if (c.id === overId || c.tasks.some((t: Task) => t.id === overId)) targetCol = c;
+        if (c.tasks.some((t: TaskWithAssignee) => t.id === activeId)) sourceCol = c;
+        if (c.id === overId || c.tasks.some((t: TaskWithAssignee) => t.id === overId)) targetCol = c;
       }
 
       if (!sourceCol || !targetCol || sourceCol === targetCol) return old;
 
-      const activeTaskItem = sourceCol.tasks.find((t: Task) => t.id === activeId);
+      const activeTaskItem = sourceCol.tasks.find((t: TaskWithAssignee) => t.id === activeId);
       if (!activeTaskItem) return old;
 
       return {
         ...old,
         columns: old.columns.map((c: ColumnWithTasks) => {
           if (c.id === sourceCol!.id) {
-            return { ...c, tasks: c.tasks.filter((t: Task) => t.id !== activeId) };
+            return { ...c, tasks: c.tasks.filter((t: TaskWithAssignee) => t.id !== activeId) };
           }
           if (c.id === targetCol!.id) {
-            const overIndex = c.tasks.findIndex((t: Task) => t.id === overId);
+            const overIndex = c.tasks.findIndex((t: TaskWithAssignee) => t.id === overId);
             const newIndex = overIndex >= 0 ? overIndex : c.tasks.length;
             const updatedTask = { ...activeTaskItem, column_id: targetCol!.id };
             const newTasks = [...c.tasks];
@@ -188,14 +199,14 @@ export const BoardDetailPage: React.FC = () => {
 
     let targetCol: ColumnWithTasks | undefined;
     for (const c of currentBoard.columns) {
-      if (c.tasks.some((t: Task) => t.id === activeId)) {
+      if (c.tasks.some((t: TaskWithAssignee) => t.id === activeId)) {
         targetCol = c;
         break;
       }
     }
     if (!targetCol) return;
 
-    const newPosition = targetCol.tasks.findIndex((t: Task) => t.id === activeId);
+    const newPosition = targetCol.tasks.findIndex((t: TaskWithAssignee) => t.id === activeId);
     try {
       await updateTaskPosition(activeId, targetCol.id, newPosition);
     } catch {
@@ -249,7 +260,7 @@ export const BoardDetailPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Поиск по названию */}
+            {/* Поиск по названию с кнопкой очистки */}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
               <input
@@ -257,8 +268,17 @@ export const BoardDetailPage: React.FC = () => {
                 placeholder="Поиск задач..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-40 sm:w-56 rounded-lg border border-gray-200 bg-gray-50 pl-8 pr-3 py-1.5 text-xs text-gray-900 focus:bg-white focus:border-blue-500 focus:outline-none"
+                className="w-40 sm:w-56 rounded-lg border border-gray-200 bg-gray-50 pl-8 pr-7 py-1.5 text-xs text-gray-900 focus:bg-white focus:border-blue-500 focus:outline-none"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  title="Очистить поиск"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
 
             {/* Фильтр по приоритету */}
@@ -270,9 +290,9 @@ export const BoardDetailPage: React.FC = () => {
                 className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-700 outline-none"
               >
                 <option value="all">Все приоритеты</option>
-                <option value="low">Низкий (low)</option>
-                <option value="medium">Средний (medium)</option>
-                <option value="high">Высокий (high)</option>
+                <option value="low">Низкий (LOW)</option>
+                <option value="medium">Средний (MEDIUM)</option>
+                <option value="high">Высокий (HIGH)</option>
               </select>
             </div>
 
@@ -306,7 +326,7 @@ export const BoardDetailPage: React.FC = () => {
                 onRenameColumn={(colId, title) => renameColumnMutation.mutate({ colId, title })}
                 onDeleteColumn={(colId) => deleteColumnMutation.mutate(colId)}
                 onDeleteTask={(taskId) => deleteTaskMutation.mutate(taskId)}
-                onSelectTask={(task) => setSelectedTask(task)}
+                onSelectTask={(task) => setSelectedTaskId(task.id)}
               />
             ))}
 
@@ -361,15 +381,17 @@ export const BoardDetailPage: React.FC = () => {
         </DndContext>
       </div>
 
-      {selectedTask && (
+      {/* Модалка деталей задачи */}
+      {currentSelectedTask && (
         <TaskModal
-          task={selectedTask}
+          task={currentSelectedTask}
           members={members}
           boardId={boardId!}
-          onClose={() => setSelectedTask(null)}
+          onClose={() => setSelectedTaskId(null)}
         />
       )}
 
+      {/* Модалка участников */}
       {isInviteModalOpen && (
         <InviteModal
           boardId={boardId!}

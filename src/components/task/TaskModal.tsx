@@ -8,7 +8,8 @@ import {
   deleteComment,
   type BoardMemberInfo,
 } from '../../services/taskModal';
-import type { Task, PriorityType } from '../../types/database';
+import type { PriorityType } from '../../types/database';
+import type { TaskWithAssignee } from '../../services/boardDetail';
 import {
   X,
   Calendar,
@@ -23,11 +24,20 @@ import {
 import { toast } from 'sonner';
 
 interface TaskModalProps {
-  task: Task;
+  task: TaskWithAssignee;
   members: BoardMemberInfo[];
   boardId: string;
   onClose: () => void;
 }
+
+// Вспомогательная функция для перевода ISO-даты в локальный формат input datetime-local
+const toLocalInputFormat = (isoString?: string | null) => {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+};
 
 export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, onClose }) => {
   const { user } = useAuth();
@@ -36,7 +46,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || '');
   const [priority, setPriority] = useState<PriorityType>(task.priority);
-  const [dueDate, setDueDate] = useState(task.due_date || '');
+  const [dueDate, setDueDate] = useState(toLocalInputFormat(task.due_date));
   const [assigneeId, setAssigneeId] = useState(task.assignee_id || '');
   const [commentText, setCommentText] = useState('');
 
@@ -53,7 +63,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
         title: title.trim(),
         description: description.trim() || null,
         priority,
-        due_date: dueDate || null,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null,
         assignee_id: assigneeId || null,
       }),
     onSuccess: () => {
@@ -91,6 +101,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
     addCommentMutation.mutate(commentText.trim());
   };
 
+  // Минимально допустимая дата/время (прямо сейчас)
+  const minDateTime = toLocalInputFormat(new Date().toISOString());
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl overflow-hidden border border-slate-200">
@@ -116,10 +129,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
         {/* Тело модального окна */}
         <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          {/* Левая колонка: Описание и Комментарии */}
+          {/* Левая колонка */}
           <div className="md:col-span-2 space-y-6">
-            
-            {/* Описание */}
             <div>
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 mb-2">
                 <AlignLeft className="h-3.5 w-3.5" />
@@ -142,7 +153,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
                 <span>Комментарии</span>
               </div>
 
-              {/* Форма отправки комментария */}
               <form onSubmit={handleAddComment} className="flex gap-2 mb-4">
                 <input
                   type="text"
@@ -160,7 +170,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
                 </button>
               </form>
 
-              {/* Ветка комментариев */}
               <div className="space-y-2.5">
                 {loadingComments ? (
                   <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
@@ -201,7 +210,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
             </div>
           </div>
 
-          {/* Правая колонка: Свойства задачи */}
+          {/* Правая колонка: Свойства */}
           <div className="space-y-4 rounded-xl bg-slate-50 p-4 border border-slate-200/70 h-fit">
             
             {/* Приоритет */}
@@ -227,7 +236,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
               </select>
             </div>
 
-            {/* Дедлайн с датой и временем + запрет прошедшего времени */}
+            {/* Дедлайн с датой и точным временем */}
             <div>
               <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 mb-1.5">
                 <Calendar className="h-3.5 w-3.5 text-slate-500" />
@@ -235,11 +244,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
               </label>
               <input
                 type="datetime-local"
-                min={new Date().toISOString().slice(0, 16)} // Запрещает выбор прошлого времени
-                value={dueDate ? dueDate.slice(0, 16) : ''}
+                min={minDateTime}
+                value={dueDate}
                 onChange={(e) => {
-                  setDueDate(e.target.value);
-                  updateTaskDetails(task.id, { due_date: e.target.value || null }).then(() => {
+                  const val = e.target.value;
+                  setDueDate(val);
+                  const isoVal = val ? new Date(val).toISOString() : null;
+                  updateTaskDetails(task.id, { due_date: isoVal }).then(() => {
                     queryClient.invalidateQueries({ queryKey: ['board', boardId] });
                   });
                 }}
