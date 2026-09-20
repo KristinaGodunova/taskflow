@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import type { ColumnWithTasks } from '../../services/boardDetail';
-import type { Task } from '../../types/database';
+import type { ColumnWithTasks, TaskWithAssignee } from '../../services/boardDetail';
 import { TaskCard } from './TaskCard';
-import { Plus, MoreVertical, Trash2, Edit2, Check, X } from 'lucide-react';
+import { Plus, MoreHorizontal, Trash2, Edit2, Check, X } from 'lucide-react';
 
 interface ColumnContainerProps {
   column: ColumnWithTasks;
@@ -12,7 +11,7 @@ interface ColumnContainerProps {
   onDeleteColumn: (columnId: string) => void;
   onRenameColumn: (columnId: string, newTitle: string) => void;
   onDeleteTask: (taskId: string) => void;
-  onSelectTask: (task: Task) => void;
+  onSelectTask: (task: TaskWithAssignee) => void;
 }
 
 export const ColumnContainer: React.FC<ColumnContainerProps> = ({
@@ -59,9 +58,10 @@ export const ColumnContainer: React.FC<ColumnContainerProps> = ({
   return (
     <div
       ref={setNodeRef}
-      className="flex flex-col w-80 shrink-0 max-h-full rounded-2xl bg-slate-100/90 border border-slate-200 shadow-sm"
+      className="flex flex-col w-80 shrink-0 max-h-full rounded-2xl bg-slate-100/80 border border-slate-200/70 shadow-xs"
     >
-      <div className="flex items-center justify-between p-3.5 border-b border-slate-200/60">
+      {/* Шапка колонки */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/50">
         {isEditingTitle ? (
           <div className="flex items-center gap-1.5 w-full">
             <input
@@ -76,7 +76,7 @@ export const ColumnContainer: React.FC<ColumnContainerProps> = ({
                   setIsEditingTitle(false);
                 }
               }}
-              className="w-full rounded border border-blue-400 bg-white px-2 py-1 text-sm font-semibold text-gray-800 outline-none"
+              className="w-full rounded-lg border border-blue-400 bg-white px-2 py-1 text-xs font-bold text-slate-800 outline-none"
             />
             <button onClick={handleSaveTitle} className="text-emerald-600 hover:text-emerald-700 p-1">
               <Check className="h-4 w-4" />
@@ -86,35 +86,38 @@ export const ColumnContainer: React.FC<ColumnContainerProps> = ({
                 setColTitle(column.title);
                 setIsEditingTitle(false);
               }}
-              className="text-gray-400 hover:text-gray-600 p-1"
+              className="text-slate-400 hover:text-slate-600 p-1"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-gray-700">{column.title}</h3>
-            <span className="rounded-full bg-slate-200/80 px-2 py-0.5 text-xs font-semibold text-gray-600">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              {column.title}
+            </h3>
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200/90 text-[11px] font-bold text-slate-600">
               {column.tasks.length}
             </span>
           </div>
         )}
 
+        {/* Меню действий колонки */}
         <div className="relative">
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="rounded p-1 text-gray-400 hover:bg-slate-200 hover:text-gray-600"
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition"
           >
-            <MoreVertical className="h-4 w-4" />
+            <MoreHorizontal className="h-4 w-4" />
           </button>
           {showMenu && (
-            <div className="absolute right-0 top-full z-20 mt-1 w-36 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+            <div className="absolute right-0 top-full z-20 mt-1.5 w-40 rounded-xl border border-slate-200 bg-white py-1 shadow-lg animate-in fade-in zoom-in-95 duration-100">
               <button
                 onClick={() => {
                   setShowMenu(false);
                   setIsEditingTitle(true);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
+                className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
               >
                 <Edit2 className="h-3.5 w-3.5" />
                 Переименовать
@@ -126,7 +129,7 @@ export const ColumnContainer: React.FC<ColumnContainerProps> = ({
                     onDeleteColumn(column.id);
                   }
                 }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Удалить
@@ -136,7 +139,8 @@ export const ColumnContainer: React.FC<ColumnContainerProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5 min-h-[100px]">
+      {/* Список задач колонки */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[100px]">
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
           {column.tasks.map((task) => (
             <TaskCard
@@ -149,12 +153,13 @@ export const ColumnContainer: React.FC<ColumnContainerProps> = ({
         </SortableContext>
       </div>
 
-      <div className="p-2.5 pt-0">
+      {/* Добавление задачи */}
+      <div className="p-3 pt-0">
         {isAddingTask ? (
-          <form onSubmit={handleCreateTask} className="space-y-2">
+          <form onSubmit={handleCreateTask} className="space-y-2 rounded-xl bg-white p-2.5 border border-slate-200 shadow-sm">
             <textarea
               autoFocus
-              placeholder="Введите название задачи..."
+              placeholder="Название задачи..."
               value={taskTitle}
               onChange={(e) => setTaskTitle(e.target.value)}
               onKeyDown={(e) => {
@@ -163,20 +168,20 @@ export const ColumnContainer: React.FC<ColumnContainerProps> = ({
                   handleCreateTask(e);
                 }
               }}
-              className="w-full rounded-lg border border-gray-300 p-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none shadow-inner"
+              className="w-full rounded-lg border border-slate-200 p-2 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
               rows={2}
             />
             <div className="flex items-center gap-2">
               <button
                 type="submit"
-                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-blue-500"
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-500"
               >
-                Добавить
+                Создать
               </button>
               <button
                 type="button"
                 onClick={() => setIsAddingTask(false)}
-                className="rounded-lg px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-200"
+                className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100"
               >
                 Отмена
               </button>
@@ -185,7 +190,7 @@ export const ColumnContainer: React.FC<ColumnContainerProps> = ({
         ) : (
           <button
             onClick={() => setIsAddingTask(true)}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold text-gray-500 hover:bg-slate-200/80 hover:text-gray-800 transition"
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold text-slate-500 hover:bg-slate-200/70 hover:text-slate-800 transition"
           >
             <Plus className="h-4 w-4" />
             Добавить задачу

@@ -1,8 +1,15 @@
 import { supabase } from './supabase';
 import type { Column, Task } from '../types/database';
 
+export interface TaskWithAssignee extends Task {
+  assignee?: {
+    name: string | null;
+    avatar_url: string | null;
+  } | null;
+}
+
 export interface ColumnWithTasks extends Column {
-  tasks: Task[];
+  tasks: TaskWithAssignee[];
 }
 
 export interface BoardFullData {
@@ -12,9 +19,8 @@ export interface BoardFullData {
   columns: ColumnWithTasks[];
 }
 
-// 1. Получить доску, её колонки и задачи внутри них
+// 1. Получить доску, её колонки и задачи с исполнителями
 export const getBoardDetails = async (boardId: string): Promise<BoardFullData> => {
-  // Получаем доску
   const { data: board, error: boardError } = await supabase
     .from('boards')
     .select('id, title, owner_id')
@@ -23,7 +29,6 @@ export const getBoardDetails = async (boardId: string): Promise<BoardFullData> =
 
   if (boardError) throw boardError;
 
-  // Получаем колонки доски (сортируем по position)
   const { data: columns, error: colError } = await supabase
     .from('columns')
     .select('*')
@@ -32,9 +37,9 @@ export const getBoardDetails = async (boardId: string): Promise<BoardFullData> =
 
   if (colError) throw colError;
 
-  // Получаем задачи для всех колонок доски (сортируем по position)
   const columnIds = (columns || []).map((c) => c.id);
-  let tasks: Task[] = [];
+  let tasks: TaskWithAssignee[] = [];
+
   if (columnIds.length > 0) {
     const { data: taskData, error: taskError } = await supabase
       .from('tasks')
@@ -43,10 +48,28 @@ export const getBoardDetails = async (boardId: string): Promise<BoardFullData> =
       .order('position', { ascending: true });
 
     if (taskError) throw taskError;
-    tasks = taskData || [];
+
+    // Подтягиваем профили исполнителей
+    const assigneeIds = Array.from(
+      new Set((taskData || []).map((t) => t.assignee_id).filter(Boolean))
+    ) as string[];
+
+    let profileMap = new Map<string, { name: string | null; avatar_url: string | null }>();
+    if (assigneeIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, avatar_url')
+        .in('id', assigneeIds);
+
+      profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+    }
+
+    tasks = (taskData || []).map((t) => ({
+      ...t,
+      assignee: t.assignee_id ? profileMap.get(t.assignee_id) || null : null,
+    }));
   }
 
-  // Группируем задачи по колонкам
   const columnsWithTasks: ColumnWithTasks[] = (columns || []).map((col) => ({
     ...col,
     tasks: tasks.filter((t) => t.column_id === col.id),
@@ -58,7 +81,6 @@ export const getBoardDetails = async (boardId: string): Promise<BoardFullData> =
   };
 };
 
-// 2. Колонки: Добавление, Переименование, Удаление
 export const createColumn = async (boardId: string, title: string, position: number) => {
   const { data, error } = await supabase
     .from('columns')
@@ -88,7 +110,6 @@ export const deleteColumn = async (columnId: string) => {
   if (error) throw error;
 };
 
-// 3. Задачи: Создание, Удаление, Перемещение
 export const createTask = async (columnId: string, title: string, createdBy: string, position: number) => {
   const { data, error } = await supabase
     .from('tasks')
@@ -115,7 +136,6 @@ export const deleteTask = async (taskId: string) => {
   if (error) throw error;
 };
 
-// Сохранение нового положения задачи (колонка + позиция)
 export const updateTaskPosition = async (taskId: string, columnId: string, position: number) => {
   const { error } = await supabase
     .from('tasks')

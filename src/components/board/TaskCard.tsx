@@ -1,11 +1,11 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { Task } from '../../types/database';
-import { Trash2, GripVertical, Calendar } from 'lucide-react';
+import type { TaskWithAssignee } from '../../services/boardDetail';
+import { Trash2, GripVertical, Clock, User } from 'lucide-react';
 
 interface TaskCardProps {
-  task: Task;
+  task: TaskWithAssignee;
   onDelete: (taskId: string) => void;
   onClick?: () => void;
   isOverlay?: boolean;
@@ -37,15 +37,37 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
       <div
         ref={setNodeRef}
         style={style}
-        className="h-20 rounded-lg border-2 border-dashed border-blue-400 bg-blue-50/50 opacity-60"
+        className="h-24 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/50 opacity-60"
       />
     );
   }
 
-  const priorityColors = {
-    low: 'bg-emerald-100 text-emerald-700',
-    medium: 'bg-amber-100 text-amber-700',
-    high: 'bg-rose-100 text-rose-700',
+  const priorityStyles = {
+    low: {
+      dot: 'bg-emerald-500',
+      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200/60',
+      label: 'LOW',
+    },
+    medium: {
+      dot: 'bg-amber-500',
+      badge: 'bg-amber-50 text-amber-700 border-amber-200/60',
+      label: 'MEDIUM',
+    },
+    high: {
+      dot: 'bg-rose-500',
+      badge: 'bg-rose-50 text-rose-700 border-rose-200/60',
+      label: 'HIGH',
+    },
+  };
+
+  const pConfig = priorityStyles[task.priority] || priorityStyles.medium;
+
+  // Форматирование даты и времени
+  const formatDateTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const dayMonth = d.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `${dayMonth} ${time}`;
   };
 
   return (
@@ -53,23 +75,25 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
       ref={setNodeRef}
       style={style}
       onClick={onClick}
-      className={`group relative flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3.5 shadow-sm transition hover:shadow hover:border-gray-300 cursor-pointer ${
-        isOverlay ? 'rotate-2 shadow-xl ring-2 ring-blue-500 cursor-grabbing' : ''
+      className={`group relative flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs transition hover:border-slate-300 hover:shadow-md cursor-pointer ${
+        isOverlay ? 'rotate-1 scale-105 shadow-xl ring-2 ring-blue-500 cursor-grabbing bg-white' : ''
       }`}
     >
+      {/* Верхняя строка: Заголовок и кнопка удаления */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-1.5 flex-1">
+        <div className="flex items-start gap-1.5 flex-1 min-w-0">
           <button
             {...attributes}
             {...listeners}
             onClick={(e) => e.stopPropagation()}
-            className="cursor-grab text-gray-400 hover:text-gray-600 active:cursor-grabbing"
+            className="cursor-grab text-slate-300 hover:text-slate-600 active:cursor-grabbing p-0.5 mt-0.5"
+            title="Перетащить"
           >
-            <GripVertical className="h-4 w-4" />
+            <GripVertical className="h-3.5 w-3.5" />
           </button>
-          <span className="text-sm font-medium text-gray-800 break-words line-clamp-3">
+          <p className="text-sm font-semibold text-slate-800 break-words line-clamp-2 leading-snug">
             {task.title}
-          </span>
+          </p>
         </div>
 
         {!isOverlay && (
@@ -78,7 +102,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
               e.stopPropagation();
               onDelete(task.id);
             }}
-            className="text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-opacity p-1"
+            className="text-slate-300 opacity-0 group-hover:opacity-100 hover:text-rose-600 transition p-1 rounded hover:bg-rose-50"
             title="Удалить задачу"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -86,21 +110,55 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
         )}
       </div>
 
-      <div className="flex items-center justify-between mt-1 text-xs">
-        <span
-          className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-            priorityColors[task.priority] || priorityColors.medium
-          }`}
-        >
-          {task.priority}
-        </span>
+      {/* Описание задачи (если есть) */}
+      {task.description && (
+        <p className="text-xs text-slate-500 line-clamp-2 pl-5">
+          {task.description}
+        </p>
+      )}
 
-        {task.due_date && (
-          <div className="flex items-center gap-1 text-gray-400">
-            <Calendar className="h-3 w-3" />
-            <span>{new Date(task.due_date).toLocaleDateString()}</span>
+      {/* Нижняя панель: Приоритет, Дата со временем и Ответственный */}
+      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs gap-2">
+        <div className="flex items-center gap-2">
+          {/* Бейдж приоритета */}
+          <span
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${pConfig.badge}`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${pConfig.dot}`} />
+            {pConfig.label}
+          </span>
+
+          {/* Дата и время дедлайна */}
+          {task.due_date && (
+            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-500" title="Срок выполнения">
+              <Clock className="h-3 w-3 text-slate-400" />
+              <span>{formatDateTime(task.due_date)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Ответственный исполнитель */}
+        {task.assignee ? (
+          <div
+            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-0.5 pr-2"
+            title={`Исполнитель: ${task.assignee.name || 'Пользователь'}`}
+          >
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 overflow-hidden shrink-0">
+              {task.assignee.avatar_url ? (
+                <img
+                  src={task.assignee.avatar_url}
+                  alt={task.assignee.name || 'Аватар'}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <User className="h-3 w-3 text-slate-500" />
+              )}
+            </div>
+            <span className="text-[11px] font-medium text-slate-700 max-w-[80px] truncate">
+              {task.assignee.name || 'Участник'}
+            </span>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

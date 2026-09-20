@@ -227,15 +227,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
               </select>
             </div>
 
-            {/* Дедлайн */}
+            {/* Дедлайн с датой и временем + запрет прошедшего времени */}
             <div>
               <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 mb-1.5">
                 <Calendar className="h-3.5 w-3.5 text-slate-500" />
-                Дедлайн
+                Дедлайн (дата и время)
               </label>
               <input
-                type="date"
-                value={dueDate}
+                type="datetime-local"
+                min={new Date().toISOString().slice(0, 16)} // Запрещает выбор прошлого времени
+                value={dueDate ? dueDate.slice(0, 16) : ''}
                 onChange={(e) => {
                   setDueDate(e.target.value);
                   updateTaskDetails(task.id, { due_date: e.target.value || null }).then(() => {
