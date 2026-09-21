@@ -10,6 +10,7 @@ import {
 } from '../../services/taskModal';
 import type { PriorityType } from '../../types/database';
 import type { TaskWithAssignee } from '../../services/boardDetail';
+import { getErrorMessage } from '../../utils/errors';
 import {
   X,
   Calendar,
@@ -30,8 +31,6 @@ interface TaskModalProps {
   onClose: () => void;
 }
 
-// Вспомогательная функция для перевода ISO-даты в локальный формат input datetime-local
-// Точный перевод даты в формат input datetime-local без сдвига часовых поясов
 const toLocalInputFormat = (dateStr?: string | null) => {
   if (!dateStr) return '';
   const d = new Date(dateStr);
@@ -64,43 +63,56 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
     queryFn: () => getTaskComments(task.id),
   });
 
-  // Сохранение изменений задачи
-  const updateMutation = useMutation({
-    mutationFn: () =>
-      updateTaskDetails(task.id, {
-        title: title.trim(),
-        description: description.trim() || null,
-        priority,
-        due_date: dueDate ? new Date(dueDate).toISOString() : null,
-        assignee_id: assigneeId || null,
-      }),
+  // Единая мутация обновления задачи с гарантированным onError (P1)
+  const updateTaskMutation = useMutation({
+    mutationFn: (updates: {
+      title?: string;
+      description?: string | null;
+      priority?: PriorityType;
+      due_date?: string | null;
+      assignee_id?: string | null;
+    }) => updateTaskDetails(task.id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       toast.success('Сохранено');
     },
-    onError: (err: Error) => toast.error(err.message || 'Ошибка сохранения'),
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
+    },
   });
 
-  // Комментарии
+  // Мутация добавления комментария
   const addCommentMutation = useMutation({
     mutationFn: (content: string) => addComment(task.id, user!.id, content),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments', task.id] });
       setCommentText('');
     },
-    onError: (err: Error) => toast.error(err.message || 'Ошибка отправки'),
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
+    },
   });
 
+  // Мутация удаления комментария
   const deleteCommentMutation = useMutation({
     mutationFn: deleteComment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments', task.id] });
       toast.success('Комментарий удален');
     },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
+    },
   });
 
   const handleBlurSave = () => {
-    updateMutation.mutate();
+    updateTaskMutation.mutate({
+      title: title.trim(),
+      description: description.trim() || null,
+      priority,
+      due_date: dueDate ? new Date(dueDate).toISOString() : null,
+      assignee_id: assigneeId || null,
+    });
   };
 
   const handleAddComment = (e: React.FormEvent) => {
@@ -109,7 +121,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
     addCommentMutation.mutate(commentText.trim());
   };
 
-  // Минимально допустимая дата/время (прямо сейчас)
   const minDateTime = toLocalInputFormat(new Date().toISOString());
 
   return (
@@ -218,7 +229,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
             </div>
           </div>
 
-          {/* Правая колонка: Свойства */}
+          {/* Правая колонка: Свойства (без raw .then, через единую мутацию) */}
           <div className="space-y-4 rounded-xl bg-slate-50 p-4 border border-slate-200/70 h-fit">
             
             {/* Приоритет */}
@@ -232,9 +243,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
                 onChange={(e) => {
                   const val = e.target.value as PriorityType;
                   setPriority(val);
-                  updateTaskDetails(task.id, { priority: val }).then(() => {
-                    queryClient.invalidateQueries({ queryKey: ['board', boardId] });
-                  });
+                  updateTaskMutation.mutate({ priority: val });
                 }}
                 className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 outline-none shadow-2xs focus:border-blue-500"
               >
@@ -244,7 +253,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
               </select>
             </div>
 
-            {/* Дедлайн с точным временем без сдвига */}
+            {/* Дедлайн */}
             <div>
               <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 mb-1.5">
                 <Calendar className="h-3.5 w-3.5 text-slate-500" />
@@ -258,9 +267,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
                   const val = e.target.value;
                   setDueDate(val);
                   const isoVal = val ? new Date(val).toISOString() : null;
-                  updateTaskDetails(task.id, { due_date: isoVal }).then(() => {
-                    queryClient.invalidateQueries({ queryKey: ['board', boardId] });
-                  });
+                  updateTaskMutation.mutate({ due_date: isoVal });
                 }}
                 className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 outline-none shadow-2xs focus:border-blue-500"
               />
@@ -275,10 +282,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
               <select
                 value={assigneeId}
                 onChange={(e) => {
+                  const val = e.target.value || null;
                   setAssigneeId(e.target.value);
-                  updateTaskDetails(task.id, { assignee_id: e.target.value || null }).then(() => {
-                    queryClient.invalidateQueries({ queryKey: ['board', boardId] });
-                  });
+                  updateTaskMutation.mutate({ assignee_id: val });
                 }}
                 className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 outline-none shadow-2xs focus:border-blue-500"
               >

@@ -1,32 +1,31 @@
-# React + TypeScript + Vite
+# TaskFlow (Jira-lite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Веб-приложение для управления задачами на канбан-досках с поддержкой совместной работы и обновлениями в реальном времени.
 
-Currently, two official plugins are available:
+## Стек технологий
+- **Frontend:** React 18, TypeScript (strict mode: `true`), Vite
+- **Стилизация:** Tailwind CSS, Lucide React
+- **State Management & Caching:** TanStack Query (React Query) + Context API
+- **Drag & Drop:** `@dnd-kit/core`, `@dnd-kit/sortable`
+- **Маршрутизация:** React Router v6
+- **Backend / Database:** Supabase (PostgreSQL, Auth, Row Level Security, Realtime, Storage)
+- **Уведомления:** Sonner
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## Развертывание базы данных (Supabase Migrations)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Все серверные миграции (таблицы, RLS-политики, триггеры, RPC-функции и хранилище файлов) вынесены в директорию `supabase/migrations/`:
 
-## Expanding the Oxlint configuration
+1. `001_schema.sql` — базовые таблицы (`profiles`, `boards`, `board_members`, `columns`, `tasks`, `comments`), триггер создания профиля при регистрации и публикация Realtime.
+2. `002_rls.sql` — политики Row Level Security (RLS) и функция безопасной проверки членства без рекурсии.
+3. `003_board_trigger.sql` — триггер автоматического добавления владельца в `board_members` и создания 3 колонок по умолчанию («To Do», «In Progress», «Done»).
+4. `004_invite_rpc.sql` — хранимые процедуры: `invite_user_by_email` (приглашение по email) и `reorder_tasks` (пакетное сохранение позиций задач).
+5. `005_storage.sql` — инициализация публичного бакета `avatars` и RLS-политики на загрузку файлов в Supabase Storage.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+### Применение миграций к новому проекту Supabase:
+- **Способ 1 (через веб-интерфейс):** в дашборде Supabase откройте **SQL Editor** -> поочередно скопируйте и выполните содержимое файлов с `001` по `005`.
+- **Способ 2 (через Supabase CLI):**
+  ```bash
+  npx supabase link --project-ref <your-project-ref>
+  npx supabase db push

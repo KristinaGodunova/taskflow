@@ -6,6 +6,7 @@ import { getBoards, createBoard, deleteBoard } from '../services/boards';
 import { Navbar } from '../components/shared/Navbar';
 import { Plus, Trash2, LayoutGrid, Clock, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getErrorMessage } from '../utils/errors';
 
 export const BoardsPage: React.FC = () => {
   const { user } = useAuth();
@@ -32,8 +33,8 @@ export const BoardsPage: React.FC = () => {
       toast.success('Доска успешно создана');
       navigate(`/boards/${newBoard.id}`);
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка создания доски');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -44,8 +45,8 @@ export const BoardsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['boards'] });
       toast.success('Доска удалена');
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка при удалении доски');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
     },
   });
 

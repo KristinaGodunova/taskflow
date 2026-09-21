@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getErrorMessage } from '../utils/errors';
 import {
   DndContext,
   DragOverlay,
@@ -111,6 +112,7 @@ export const BoardDetailPage: React.FC = () => {
     return closestCenter(args);
   };
 
+  // Мутации колонок с безопасным onError (P1)
   const addColumnMutation = useMutation({
     mutationFn: (title: string) =>
       createColumn(boardId!, title, boardData?.columns.length || 0),
@@ -120,14 +122,18 @@ export const BoardDetailPage: React.FC = () => {
       setIsAddingCol(false);
       toast.success('Колонка создана');
     },
-    onError: (err: Error) => toast.error(err.message || 'Ошибка создания колонки'),
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
+    },
   });
 
   const renameColumnMutation = useMutation({
     mutationFn: ({ colId, title }: { colId: string; title: string }) =>
       updateColumnTitle(colId, title),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['board', boardId] }),
-    onError: (err: Error) => toast.error(err.message || 'Ошибка переименования'),
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
+    },
   });
 
   const deleteColumnMutation = useMutation({
@@ -136,9 +142,12 @@ export const BoardDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       toast.success('Колонка удалена');
     },
-    onError: (err: Error) => toast.error(err.message || 'Ошибка удаления колонки'),
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
+    },
   });
 
+  // Мутации задач с безопасным onError (P1)
   const addTaskMutation = useMutation({
     mutationFn: ({ colId, title }: { colId: string; title: string }) => {
       const col = boardData?.columns.find((c) => c.id === colId);
@@ -149,7 +158,9 @@ export const BoardDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       toast.success('Задача создана');
     },
-    onError: (err: Error) => toast.error(err.message || 'Ошибка создания задачи'),
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
+    },
   });
 
   const deleteTaskMutation = useMutation({
@@ -158,7 +169,9 @@ export const BoardDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       toast.success('Задача удалена');
     },
-    onError: (err: Error) => toast.error(err.message || 'Ошибка удаления задачи'),
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error));
+    },
   });
 
   const findColumnByTaskId = (taskId: string, columns: ColumnWithTasks[]) => {
@@ -267,10 +280,10 @@ export const BoardDetailPage: React.FC = () => {
 
       try {
         await batchReorderTasks(updates);
-      } catch {
+      } catch (err: unknown) {
+        toast.error(getErrorMessage(err));
         queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       }
-      return;
     }
 
     // СЦЕНАРИЙ 2: Перенос между разными колонками
