@@ -252,7 +252,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
               </label>
               <input
                 type="datetime-local"
-                min={toLocalInputFormat(new Date().toISOString())}
+                min={minDateTime}
                 value={dueDate}
                 onChange={(e) => {
                   const val = e.target.value;
