@@ -50,7 +50,8 @@ export const updateAvatarUrl = async (userId: string, avatarUrl: string): Promis
 // Загрузка собственного фото в Supabase Storage
 export const uploadAvatar = async (userId: string, file: File): Promise<string> => {
   const fileExt = file.name.split('.').pop();
-  const filePath = `${userId}-${Math.random()}.${fileExt}`;
+  const filePath = `${userId}/avatar.${fileExt}`;
+
 
   const { error: uploadError } = await supabase.storage
     .from('avatars')
