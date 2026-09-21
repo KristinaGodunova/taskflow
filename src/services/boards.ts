@@ -1,16 +1,29 @@
 import { supabase } from './supabase';
-import type { Board } from '../types/database';
+import type { Board, MemberRole } from '../types/database';
 
 export interface BoardWithRole extends Board {
-  role?: 'owner' | 'member';
+  role?: MemberRole;
 }
 
-// 1. Получить список всех досок текущего пользователя
+interface RawBoardMemberJoin {
+  id: string;
+  title: string;
+  owner_id: string;
+  created_at: string;
+  board_members: {
+    role: MemberRole;
+    user_id: string;
+  }[];
+}
+
 export const getBoards = async (userId: string): Promise<BoardWithRole[]> => {
   const { data, error } = await supabase
     .from('boards')
     .select(`
-      *,
+      id,
+      title,
+      owner_id,
+      created_at,
       board_members!inner(role, user_id)
     `)
     .eq('board_members.user_id', userId)
@@ -18,13 +31,17 @@ export const getBoards = async (userId: string): Promise<BoardWithRole[]> => {
 
   if (error) throw error;
 
-  return (data || []).map((b: any) => ({
-    ...b,
-    role: b.board_members?.[0]?.role || 'member',
+  const rawBoards = (data || []) as unknown as RawBoardMemberJoin[];
+
+  return rawBoards.map((b) => ({
+    id: b.id,
+    title: b.title,
+    owner_id: b.owner_id,
+    created_at: b.created_at,
+    role: b.board_members?.[0]?.role ?? 'member',
   }));
 };
 
-// 2. Создать новую доску (триггер в БД сам добавит владельца и создаст колонки "To Do", "In Progress", "Done")
 export const createBoard = async (title: string, ownerId: string): Promise<Board> => {
   const { data, error } = await supabase
     .from('boards')
@@ -39,7 +56,6 @@ export const createBoard = async (title: string, ownerId: string): Promise<Board
   return data;
 };
 
-// 3. Удалить доску
 export const deleteBoard = async (boardId: string): Promise<void> => {
   const { error } = await supabase
     .from('boards')

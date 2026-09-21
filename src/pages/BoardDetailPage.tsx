@@ -29,6 +29,7 @@ import {
   type ColumnWithTasks,
   type TaskWithAssignee,
   type TaskPositionUpdate,
+  type BoardFullData,
 } from '../services/boardDetail';
 import { getBoardMembers } from '../services/taskModal';
 import { ColumnContainer } from '../components/board/ColumnContainer';
@@ -59,13 +60,13 @@ export const BoardDetailPage: React.FC = () => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // Движение от 5px активирует drag, обычный клик открывает модалку
+        distance: 5,
       },
     }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const { data: boardData, isLoading, isError } = useQuery({
+  const { data: boardData, isLoading, isError } = useQuery<BoardFullData>({
     queryKey: ['board', boardId],
     queryFn: () => getBoardDetails(boardId!),
     enabled: !!boardId,
@@ -98,7 +99,6 @@ export const BoardDetailPage: React.FC = () => {
     }));
   }, [boardData?.columns, searchQuery, priorityFilter]);
 
-  // Детектор коллизий: всегда отдает приоритет карточке под курсором
   const collisionDetectionStrategy: CollisionDetection = (args) => {
     const pointerCollisions = pointerWithin(args);
     if (pointerCollisions.length > 0) {
@@ -120,12 +120,14 @@ export const BoardDetailPage: React.FC = () => {
       setIsAddingCol(false);
       toast.success('Колонка создана');
     },
+    onError: (err: Error) => toast.error(err.message || 'Ошибка создания колонки'),
   });
 
   const renameColumnMutation = useMutation({
     mutationFn: ({ colId, title }: { colId: string; title: string }) =>
       updateColumnTitle(colId, title),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['board', boardId] }),
+    onError: (err: Error) => toast.error(err.message || 'Ошибка переименования'),
   });
 
   const deleteColumnMutation = useMutation({
@@ -134,6 +136,7 @@ export const BoardDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       toast.success('Колонка удалена');
     },
+    onError: (err: Error) => toast.error(err.message || 'Ошибка удаления колонки'),
   });
 
   const addTaskMutation = useMutation({
@@ -146,6 +149,7 @@ export const BoardDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       toast.success('Задача создана');
     },
+    onError: (err: Error) => toast.error(err.message || 'Ошибка создания задачи'),
   });
 
   const deleteTaskMutation = useMutation({
@@ -154,9 +158,8 @@ export const BoardDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       toast.success('Задача удалена');
     },
+    onError: (err: Error) => toast.error(err.message || 'Ошибка удаления задачи'),
   });
-
-  // --- ЛОГИКА ПЕРЕТАСКИВАНИЯ ---
 
   const findColumnByTaskId = (taskId: string, columns: ColumnWithTasks[]) => {
     return columns.find((c) => c.tasks.some((t) => t.id === taskId));
@@ -179,7 +182,7 @@ export const BoardDetailPage: React.FC = () => {
     const overId = String(over.id);
     if (activeId === overId) return;
 
-    queryClient.setQueryData(['board', boardId], (old: any) => {
+    queryClient.setQueryData<BoardFullData>(['board', boardId], (old) => {
       if (!old) return old;
 
       const sourceCol = findColumnByTaskId(activeId, old.columns);
@@ -187,19 +190,19 @@ export const BoardDetailPage: React.FC = () => {
 
       if (!sourceCol || !targetCol || sourceCol.id === targetCol.id) return old;
 
-      const activeTaskItem = sourceCol.tasks.find((t: TaskWithAssignee) => t.id === activeId);
+      const activeTaskItem = sourceCol.tasks.find((t) => t.id === activeId);
       if (!activeTaskItem) return old;
 
-      const overIndex = targetCol.tasks.findIndex((t: TaskWithAssignee) => t.id === overId);
+      const overIndex = targetCol.tasks.findIndex((t) => t.id === overId);
       const newIndex = overIndex >= 0 ? overIndex : targetCol.tasks.length;
 
       return {
         ...old,
-        columns: old.columns.map((c: ColumnWithTasks) => {
+        columns: old.columns.map((c) => {
           if (c.id === sourceCol.id) {
             return {
               ...c,
-              tasks: c.tasks.filter((t: TaskWithAssignee) => t.id !== activeId),
+              tasks: c.tasks.filter((t) => t.id !== activeId),
             };
           }
           if (c.id === targetCol.id) {
@@ -229,7 +232,7 @@ export const BoardDetailPage: React.FC = () => {
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    const currentBoard = queryClient.getQueryData<any>(['board', boardId]);
+    const currentBoard = queryClient.getQueryData<BoardFullData>(['board', boardId]);
     if (!currentBoard) return;
 
     const sourceCol = findColumnByTaskId(activeId, currentBoard.columns);
@@ -239,8 +242,8 @@ export const BoardDetailPage: React.FC = () => {
 
     // СЦЕНАРИЙ 1: Перестановка внутри одной колонки
     if (sourceCol.id === targetCol.id) {
-      const oldIndex = sourceCol.tasks.findIndex((t: TaskWithAssignee) => t.id === activeId);
-      const newIndex = sourceCol.tasks.findIndex((t: TaskWithAssignee) => t.id === overId);
+      const oldIndex = sourceCol.tasks.findIndex((t) => t.id === activeId);
+      const newIndex = sourceCol.tasks.findIndex((t) => t.id === overId);
 
       if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
 
@@ -255,16 +258,16 @@ export const BoardDetailPage: React.FC = () => {
         position: t.position,
       }));
 
-      queryClient.setQueryData(['board', boardId], {
+      queryClient.setQueryData<BoardFullData>(['board', boardId], {
         ...currentBoard,
-        columns: currentBoard.columns.map((c: ColumnWithTasks) =>
+        columns: currentBoard.columns.map((c) =>
           c.id === sourceCol.id ? { ...c, tasks: reorderedTasks } : c
         ),
       });
 
       try {
         await batchReorderTasks(updates);
-      } catch (err) {
+      } catch {
         queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       }
       return;
@@ -280,7 +283,7 @@ export const BoardDetailPage: React.FC = () => {
 
     try {
       await batchReorderTasks(updates);
-    } catch (err) {
+    } catch {
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
     }
   };

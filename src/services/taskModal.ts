@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { PriorityType } from '../types/database';
+import type { PriorityType, MemberRole } from '../types/database';
 
 export interface CommentWithProfile {
   id: string;
@@ -15,14 +15,13 @@ export interface CommentWithProfile {
 
 export interface BoardMemberInfo {
   user_id: string;
-  role: 'owner' | 'member';
+  role: MemberRole;
   profile: {
     name: string | null;
     avatar_url: string | null;
   };
 }
 
-// 1. Получение участников доски и их профилей
 export const getBoardMembers = async (boardId: string): Promise<BoardMemberInfo[]> => {
   const { data: members, error: mError } = await supabase
     .from('board_members')
@@ -32,7 +31,7 @@ export const getBoardMembers = async (boardId: string): Promise<BoardMemberInfo[
   if (mError) throw mError;
   if (!members || members.length === 0) return [];
 
-  const userIds = members.map((m: any) => m.user_id);
+  const userIds = members.map((m) => m.user_id);
   const { data: profiles, error: pError } = await supabase
     .from('profiles')
     .select('id, name, avatar_url')
@@ -40,19 +39,20 @@ export const getBoardMembers = async (boardId: string): Promise<BoardMemberInfo[
 
   if (pError) throw pError;
 
-  const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+  const profileMap = new Map(
+    (profiles || []).map((p) => [p.id, { name: p.name, avatar_url: p.avatar_url }])
+  );
 
-  return members.map((m: any) => ({
+  return members.map((m) => ({
     user_id: m.user_id,
-    role: m.role as 'owner' | 'member',
+    role: m.role,
     profile: {
-      name: profileMap.get(m.user_id)?.name || 'Пользователь',
-      avatar_url: profileMap.get(m.user_id)?.avatar_url || null,
+      name: profileMap.get(m.user_id)?.name ?? 'Пользователь',
+      avatar_url: profileMap.get(m.user_id)?.avatar_url ?? null,
     },
   }));
 };
 
-// 2. Обновление полей задачи
 export const updateTaskDetails = async (
   taskId: string,
   updates: {
@@ -71,7 +71,6 @@ export const updateTaskDetails = async (
   if (error) throw error;
 };
 
-// 3. Получение комментариев задачи и авторов
 export const getTaskComments = async (taskId: string): Promise<CommentWithProfile[]> => {
   const { data: comments, error: cError } = await supabase
     .from('comments')
@@ -82,19 +81,25 @@ export const getTaskComments = async (taskId: string): Promise<CommentWithProfil
   if (cError) throw cError;
   if (!comments || comments.length === 0) return [];
 
-  const userIds = Array.from(new Set(comments.map((c: any) => c.user_id)));
+  const userIds = Array.from(new Set(comments.map((c) => c.user_id)));
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, name, avatar_url')
     .in('id', userIds);
 
-  const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+  const profileMap = new Map(
+    (profiles || []).map((p) => [p.id, { name: p.name, avatar_url: p.avatar_url }])
+  );
 
-  return comments.map((c: any) => ({
-    ...c,
+  return comments.map((c) => ({
+    id: c.id,
+    task_id: c.task_id,
+    user_id: c.user_id,
+    content: c.content,
+    created_at: c.created_at,
     profile: {
-      name: profileMap.get(c.user_id)?.name || 'Пользователь',
-      avatar_url: profileMap.get(c.user_id)?.avatar_url || null,
+      name: profileMap.get(c.user_id)?.name ?? 'Пользователь',
+      avatar_url: profileMap.get(c.user_id)?.avatar_url ?? null,
     },
   }));
 };
@@ -123,7 +128,6 @@ export const deleteComment = async (commentId: string) => {
   if (error) throw error;
 };
 
-// 4. Приглашение по email
 export const inviteMemberByEmail = async (boardId: string, email: string) => {
   const { data, error } = await supabase.rpc('invite_user_by_email', {
     p_board_id: boardId,
@@ -131,6 +135,7 @@ export const inviteMemberByEmail = async (boardId: string, email: string) => {
   });
 
   if (error) throw error;
-  if (!data.success) throw new Error(data.error);
-  return data;
+  const result = data as { success: boolean; error?: string };
+  if (!result.success) throw new Error(result.error || 'Ошибка приглашения');
+  return result;
 };

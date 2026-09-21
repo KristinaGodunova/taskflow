@@ -22,7 +22,7 @@ export const InviteModal: React.FC<InviteModalProps> = ({ boardId, members, isOw
       setEmail('');
       toast.success('Участник успешно добавлен на доску!');
     },
-    onError: (err: any) => toast.error(err.message || 'Ошибка приглашения'),
+    onError: (err: Error) => toast.error(err.message || 'Ошибка приглашения'),
   });
 
   const handleInvite = (e: React.FormEvent) => {

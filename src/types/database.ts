@@ -28,6 +28,7 @@ export interface Database {
           name?: string | null;
           avatar_url?: string | null;
         };
+        Relationships: [];
       };
       boards: {
         Row: {
@@ -48,6 +49,7 @@ export interface Database {
           owner_id?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       board_members: {
         Row: {
@@ -68,6 +70,7 @@ export interface Database {
           user_id?: string;
           role?: MemberRole;
         };
+        Relationships: [];
       };
       columns: {
         Row: {
@@ -88,6 +91,7 @@ export interface Database {
           title?: string;
           position?: number;
         };
+        Relationships: [];
       };
       tasks: {
         Row: {
@@ -126,6 +130,7 @@ export interface Database {
           created_by?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       comments: {
         Row: {
@@ -149,12 +154,40 @@ export interface Database {
           content?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      reorder_tasks: {
+        Args: {
+          p_updates: {
+            id: string;
+            column_id: string;
+            position: number;
+          }[];
+        };
+        Returns: void;
+      };
+      invite_user_by_email: {
+        Args: {
+          p_board_id: string;
+          p_email: string;
+        };
+        Returns: Json;
+      };
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
     };
   };
 }
 
-// Экспорт удобных типов для таблиц
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Board = Database['public']['Tables']['boards']['Row'];
 export type BoardMember = Database['public']['Tables']['board_members']['Row'];

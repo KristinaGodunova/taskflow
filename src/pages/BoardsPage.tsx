@@ -32,7 +32,7 @@ export const BoardsPage: React.FC = () => {
       toast.success('Доска успешно создана');
       navigate(`/boards/${newBoard.id}`);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Ошибка создания доски');
     },
   });
@@ -44,7 +44,7 @@ export const BoardsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['boards'] });
       toast.success('Доска удалена');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Ошибка при удалении доски');
     },
   });

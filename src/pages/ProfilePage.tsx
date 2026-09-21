@@ -54,7 +54,7 @@ export const ProfilePage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
       toast.success('Имя профиля сохранено');
     },
-    onError: (err: any) => toast.error(err.message || 'Ошибка обновления'),
+    onError: (err: Error) => toast.error(err.message || 'Ошибка обновления'),
   });
 
   // Мутация выбора готового аватара
@@ -66,7 +66,7 @@ export const ProfilePage: React.FC = () => {
       setActiveTab('menu');
       toast.success('Аватар обновлен!');
     },
-    onError: (err: any) => toast.error(err.message || 'Ошибка смены аватара'),
+    onError: (err: Error) => toast.error(err.message || 'Ошибка смены аватара'),
   });
 
   const handleSaveName = (e: React.FormEvent) => {
@@ -91,8 +91,9 @@ export const ProfilePage: React.FC = () => {
       setIsAvatarModalOpen(false);
       setActiveTab('menu');
       toast.success('Фото успешно загружено!');
-    } catch (err: any) {
-      toast.error(err.message || 'Ошибка загрузки фото');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка загрузки фото';
+      toast.error(message);
     } finally {
       setIsUploading(false);
     }

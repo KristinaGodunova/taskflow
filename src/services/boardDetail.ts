@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
-import type { Column, Task } from '../types/database';
+import type { Column, Task} from '../types/database';
+
 
 export interface TaskWithAssignee extends Task {
   assignee?: {
@@ -25,7 +26,6 @@ export interface TaskPositionUpdate {
   position: number;
 }
 
-// 1. Получение доски с колонками и задачами (сортировка по position)
 export const getBoardDetails = async (boardId: string): Promise<BoardFullData> => {
   const { data: board, error: boardError } = await supabase
     .from('boards')
@@ -55,23 +55,26 @@ export const getBoardDetails = async (boardId: string): Promise<BoardFullData> =
 
     if (taskError) throw taskError;
 
+    const rawTasks = taskData || [];
     const assigneeIds = Array.from(
-      new Set((taskData || []).map((t) => t.assignee_id).filter(Boolean))
-    ) as string[];
+      new Set(rawTasks.map((t) => t.assignee_id).filter((id): id is string => Boolean(id)))
+    );
 
-    let profileMap = new Map<string, { name: string | null; avatar_url: string | null }>();
+    const profileMap = new Map<string, { name: string | null; avatar_url: string | null }>();
     if (assigneeIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, name, avatar_url')
         .in('id', assigneeIds);
 
-      profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+      (profiles || []).forEach((p) => {
+        profileMap.set(p.id, { name: p.name, avatar_url: p.avatar_url });
+      });
     }
 
-    tasks = (taskData || []).map((t) => ({
+    tasks = rawTasks.map((t) => ({
       ...t,
-      assignee: t.assignee_id ? profileMap.get(t.assignee_id) || null : null,
+      assignee: t.assignee_id ? profileMap.get(t.assignee_id) ?? null : null,
     }));
   }
 
@@ -81,12 +84,13 @@ export const getBoardDetails = async (boardId: string): Promise<BoardFullData> =
   }));
 
   return {
-    ...board,
+    id: board.id,
+    title: board.title,
+    owner_id: board.owner_id,
     columns: columnsWithTasks,
   };
 };
 
-// 2. Управление колонками
 export const createColumn = async (boardId: string, title: string, position: number) => {
   const { data, error } = await supabase
     .from('columns')
@@ -116,7 +120,6 @@ export const deleteColumn = async (columnId: string) => {
   if (error) throw error;
 };
 
-// 3. Управление задачами
 export const createTask = async (columnId: string, title: string, createdBy: string, position: number) => {
   const { data, error } = await supabase
     .from('tasks')
@@ -143,16 +146,13 @@ export const deleteTask = async (taskId: string) => {
   if (error) throw error;
 };
 
-// 4. Пакетное обновление позиций задач с автоматическим фоллбэком
 export const batchReorderTasks = async (updates: TaskPositionUpdate[]): Promise<void> => {
   if (updates.length === 0) return;
 
-  // Попытка 1: через быструю RPC функцию в одной транзакции
   const { error: rpcError } = await supabase.rpc('reorder_tasks', {
     p_updates: updates,
   });
 
-  // Попытка 2 (фоллбэк): если RPC функции нет, обновляем напрямую через стандартный API
   if (rpcError) {
     await Promise.all(
       updates.map((u) =>

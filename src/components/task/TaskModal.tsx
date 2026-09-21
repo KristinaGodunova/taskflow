@@ -78,7 +78,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       toast.success('Сохранено');
     },
-    onError: (err: any) => toast.error(err.message || 'Ошибка сохранения'),
+    onError: (err: Error) => toast.error(err.message || 'Ошибка сохранения'),
   });
 
   // Комментарии
@@ -88,7 +88,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
       queryClient.invalidateQueries({ queryKey: ['comments', task.id] });
       setCommentText('');
     },
-    onError: (err: any) => toast.error(err.message || 'Ошибка отправки'),
+    onError: (err: Error) => toast.error(err.message || 'Ошибка отправки'),
   });
 
   const deleteCommentMutation = useMutation({
