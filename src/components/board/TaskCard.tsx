@@ -62,12 +62,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
 
   const pConfig = priorityStyles[task.priority] || priorityStyles.medium;
 
-  const formatDateTime = (dateStr: string) => {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    const dayMonth = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-    return `${dayMonth} ${time}`;
+  const formatDate = (dateStr: string) => {
+    // Безопасное чтение YYYY-MM-DD без влияния часового пояса
+    const [year, month, day] = dateStr.slice(0, 10).split('-');
+    if (!year || !month || !day) return dateStr;
+    return `${day}.${month}.${year}`;
   };
 
   return (
@@ -127,7 +126,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
           {task.due_date && (
             <div className="flex items-center gap-1 text-[11px] font-medium text-slate-500" title="Дедлайн">
               <Clock className="h-3 w-3 text-slate-400" />
-              <span>{formatDateTime(task.due_date)}</span>
+              <span>{formatDate(task.due_date)}</span>
             </div>
           )}
         </div>

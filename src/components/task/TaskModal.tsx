@@ -31,21 +31,6 @@ interface TaskModalProps {
   onClose: () => void;
 }
 
-const toLocalInputFormat = (dateStr?: string | null) => {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '';
-
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const year = d.getFullYear();
-  const month = pad(d.getMonth() + 1);
-  const day = pad(d.getDate());
-  const hours = pad(d.getHours());
-  const minutes = pad(d.getMinutes());
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-};
-
 export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, onClose }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -53,7 +38,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || '');
   const [priority, setPriority] = useState<PriorityType>(task.priority);
-  const [dueDate, setDueDate] = useState(toLocalInputFormat(task.due_date));
+  const [dueDate, setDueDate] = useState(task.due_date ? task.due_date.slice(0, 10) : '');
   const [assigneeId, setAssigneeId] = useState(task.assignee_id || '');
   const [commentText, setCommentText] = useState('');
 
@@ -63,7 +48,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
     queryFn: () => getTaskComments(task.id),
   });
 
-  // Единая мутация обновления задачи с гарантированным onError (P1)
+  // Единая мутация обновления задачи с гарантированным onError
   const updateTaskMutation = useMutation({
     mutationFn: (updates: {
       title?: string;
@@ -110,7 +95,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
       title: title.trim(),
       description: description.trim() || null,
       priority,
-      due_date: dueDate ? new Date(dueDate).toISOString() : null,
+      due_date: dueDate || null,
       assignee_id: assigneeId || null,
     });
   };
@@ -121,7 +106,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
     addCommentMutation.mutate(commentText.trim());
   };
 
-  const minDateTime = toLocalInputFormat(new Date().toISOString());
+  // Сегодняшняя дата в формате YYYY-MM-DD для запрета выбора прошедших дат
+  const todayDate = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs animate-in fade-in duration-150">
@@ -229,7 +215,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
             </div>
           </div>
 
-          {/* Правая колонка: Свойства (без raw .then, через единую мутацию) */}
+          {/* Правая колонка: Свойства (строго тип date) */}
           <div className="space-y-4 rounded-xl bg-slate-50 p-4 border border-slate-200/70 h-fit">
             
             {/* Приоритет */}
@@ -253,21 +239,20 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
               </select>
             </div>
 
-            {/* Дедлайн */}
+            {/* Дедлайн строго в формате date */}
             <div>
               <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 mb-1.5">
                 <Calendar className="h-3.5 w-3.5 text-slate-500" />
-                Дедлайн (дата и время)
+                Дедлайн
               </label>
               <input
-                type="datetime-local"
-                min={minDateTime}
+                type="date"
+                min={todayDate}
                 value={dueDate}
                 onChange={(e) => {
-                  const val = e.target.value;
-                  setDueDate(val);
-                  const isoVal = val ? new Date(val).toISOString() : null;
-                  updateTaskMutation.mutate({ due_date: isoVal });
+                  const val = e.target.value || null;
+                  setDueDate(e.target.value);
+                  updateTaskMutation.mutate({ due_date: val });
                 }}
                 className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 outline-none shadow-2xs focus:border-blue-500"
               />

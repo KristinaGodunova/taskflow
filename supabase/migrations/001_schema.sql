@@ -41,7 +41,7 @@ create table if not exists public.tasks (
   title text not null,
   description text,
   priority text default 'medium' check (priority in ('low', 'medium', 'high')),
-  due_date timestamptz,
+  due_date date,
   assignee_id uuid references auth.users(id),
   position integer not null default 0,
   created_by uuid not null references auth.users(id),
