@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   pointerWithin,
@@ -12,25 +12,24 @@ import {
   type DragEndEvent,
   type CollisionDetection,
 } from '@dnd-kit/core';
-import { sortableKeyboardCoordinates, arrayMove } from '@dnd-kit/sortable';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { toast } from 'sonner';
 import {
   batchReorderTasks,
   type ColumnWithTasks,
   type TaskWithAssignee,
-  type TaskPositionUpdate,
   type BoardFullData,
 } from '../services/boardDetail';
+import { moveTask } from '../utils/moveTask';
+import { getErrorMessage } from '../utils/errors';
 
 export const useTaskDnD = (boardId: string) => {
   const queryClient = useQueryClient();
   const [activeTask, setActiveTask] = useState<TaskWithAssignee | null>(null);
+  const snapshotRef = useRef<BoardFullData | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5,
-      },
-    }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -46,17 +45,23 @@ export const useTaskDnD = (boardId: string) => {
     return closestCenter(args);
   };
 
-  const findColumnByTaskId = (taskId: string, columns: ColumnWithTasks[]) => {
-    return columns.find((c) => c.tasks.some((t) => t.id === taskId));
-  };
+  const findColumnByTaskId = (taskId: string, columns: ColumnWithTasks[]) =>
+    columns.find((c) => c.tasks.some((t) => t.id === taskId));
 
-  const findColumnById = (colId: string, columns: ColumnWithTasks[]) => {
-    return columns.find((c) => c.id === colId);
+  const findColumnById = (colId: string, columns: ColumnWithTasks[]) =>
+    columns.find((c) => c.id === colId);
+
+  const restoreSnapshot = () => {
+    if (snapshotRef.current) {
+      queryClient.setQueryData(['board', boardId], snapshotRef.current);
+    }
+    snapshotRef.current = null;
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    const task = event.active.data.current?.task as TaskWithAssignee;
+    const task = event.active.data.current?.task as TaskWithAssignee | undefined;
     if (task) setActiveTask(task);
+    snapshotRef.current = queryClient.getQueryData<BoardFullData>(['board', boardId]) ?? null;
   };
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -72,7 +77,6 @@ export const useTaskDnD = (boardId: string) => {
 
       const sourceCol = findColumnByTaskId(activeId, old.columns);
       const targetCol = findColumnById(overId, old.columns) || findColumnByTaskId(overId, old.columns);
-
       if (!sourceCol || !targetCol || sourceCol.id === targetCol.id) return old;
 
       const activeTaskItem = sourceCol.tasks.find((t) => t.id === activeId);
@@ -85,22 +89,12 @@ export const useTaskDnD = (boardId: string) => {
         ...old,
         columns: old.columns.map((c) => {
           if (c.id === sourceCol.id) {
-            return {
-              ...c,
-              tasks: c.tasks.filter((t) => t.id !== activeId),
-            };
+            return { ...c, tasks: c.tasks.filter((t) => t.id !== activeId) };
           }
           if (c.id === targetCol.id) {
-            const updatedTask: TaskWithAssignee = {
-              ...activeTaskItem,
-              column_id: targetCol.id,
-            };
             const nextTasks = [...c.tasks];
-            nextTasks.splice(newIndex, 0, updatedTask);
-            return {
-              ...c,
-              tasks: nextTasks,
-            };
+            nextTasks.splice(newIndex, 0, { ...activeTaskItem, column_id: targetCol.id });
+            return { ...c, tasks: nextTasks };
           }
           return c;
         }),
@@ -108,67 +102,39 @@ export const useTaskDnD = (boardId: string) => {
     });
   };
 
+  const handleDragCancel = () => {
+    setActiveTask(null);
+    restoreSnapshot();
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
 
-    if (!over) return;
+    const snapshot = snapshotRef.current;
+    snapshotRef.current = null;
+    if (!snapshot) return;
 
-    const activeId = String(active.id);
-    const overId = String(over.id);
-
-    const currentBoard = queryClient.getQueryData<BoardFullData>(['board', boardId]);
-    if (!currentBoard) return;
-
-    const sourceCol = findColumnByTaskId(activeId, currentBoard.columns);
-    const targetCol = findColumnByTaskId(overId, currentBoard.columns) || findColumnById(overId, currentBoard.columns);
-
-    if (!sourceCol || !targetCol) return;
-
-    // Внутри одной колонки
-    if (sourceCol.id === targetCol.id) {
-      const oldIndex = sourceCol.tasks.findIndex((t) => t.id === activeId);
-      const newIndex = sourceCol.tasks.findIndex((t) => t.id === overId);
-
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
-
-      const reorderedTasks = arrayMove(sourceCol.tasks, oldIndex, newIndex).map((t, idx) => ({
-        ...t,
-        position: idx,
-      }));
-
-      const updates: TaskPositionUpdate[] = reorderedTasks.map((t) => ({
-        id: t.id,
-        column_id: sourceCol.id,
-        position: t.position,
-      }));
-
-      queryClient.setQueryData<BoardFullData>(['board', boardId], {
-        ...currentBoard,
-        columns: currentBoard.columns.map((c) =>
-          c.id === sourceCol.id ? { ...c, tasks: reorderedTasks } : c
-        ),
-      });
-
-      try {
-        await batchReorderTasks(updates);
-      } catch {
-        queryClient.invalidateQueries({ queryKey: ['board', boardId] });
-      }
+    if (!over) {
+      queryClient.setQueryData(['board', boardId], snapshot);
       return;
     }
 
-    // Между разными колонками
-    const targetTasks = [...targetCol.tasks];
-    const updates: TaskPositionUpdate[] = targetTasks.map((t, idx) => ({
-      id: t.id,
-      column_id: targetCol.id,
-      position: idx,
-    }));
+    const result = moveTask(snapshot.columns, String(active.id), String(over.id));
+    if (!result.changed) {
+      queryClient.setQueryData(['board', boardId], snapshot);
+      return;
+    }
+
+    queryClient.setQueryData<BoardFullData>(['board', boardId], {
+      ...snapshot,
+      columns: result.columns,
+    });
 
     try {
-      await batchReorderTasks(updates);
-    } catch {
+      await batchReorderTasks(result.updates);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
     }
   };
@@ -180,5 +146,6 @@ export const useTaskDnD = (boardId: string) => {
     handleDragStart,
     handleDragOver,
     handleDragEnd,
+    handleDragCancel,
   };
 };

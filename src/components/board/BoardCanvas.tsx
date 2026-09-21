@@ -44,12 +44,14 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({
   return (
     <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
       <DndContext
-        sensors={dnd.sensors}
-        collisionDetection={dnd.collisionDetectionStrategy}
-        onDragStart={dnd.handleDragStart}
-        onDragOver={dnd.handleDragOver}
-        onDragEnd={dnd.handleDragEnd}
-      >
+  sensors={dnd.sensors}
+  collisionDetection={dnd.collisionDetectionStrategy}
+  onDragStart={dnd.handleDragStart}
+  onDragOver={dnd.handleDragOver}
+  onDragEnd={dnd.handleDragEnd}
+  onDragCancel={dnd.handleDragCancel}
+>
+
         <div className="flex h-full items-start gap-5">
           {columns.map((column) => (
             <ColumnContainer
