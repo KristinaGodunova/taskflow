@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
+  pointerWithin,
+  closestCenter,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -12,6 +13,7 @@ import {
   type DragStartEvent,
   type DragOverEvent,
   type DragEndEvent,
+  type CollisionDetection,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates, arrayMove } from '@dnd-kit/sortable';
 import { useAuth } from '../providers/AuthContext';
@@ -55,7 +57,11 @@ export const BoardDetailPage: React.FC = () => {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Движение от 5px активирует drag, обычный клик открывает модалку
+      },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -71,7 +77,6 @@ export const BoardDetailPage: React.FC = () => {
     enabled: !!boardId,
   });
 
-  // Синхронизация выбранной задачи
   const currentSelectedTask = useMemo(() => {
     if (!selectedTaskId || !boardData) return null;
     for (const col of boardData.columns) {
@@ -81,7 +86,6 @@ export const BoardDetailPage: React.FC = () => {
     return null;
   }, [selectedTaskId, boardData]);
 
-  // Фильтрация для отображения
   const filteredColumns = useMemo(() => {
     if (!boardData?.columns) return [];
     return boardData.columns.map((col) => ({
@@ -94,7 +98,19 @@ export const BoardDetailPage: React.FC = () => {
     }));
   }, [boardData?.columns, searchQuery, priorityFilter]);
 
-  // Мутации колонок
+  // Детектор коллизий: всегда отдает приоритет карточке под курсором
+  const collisionDetectionStrategy: CollisionDetection = (args) => {
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) {
+      const taskCollision = pointerCollisions.find(
+        (c) => args.droppableContainers.find((d) => d.id === c.id)?.data?.current?.type === 'Task'
+      );
+      if (taskCollision) return [taskCollision];
+      return pointerCollisions;
+    }
+    return closestCenter(args);
+  };
+
   const addColumnMutation = useMutation({
     mutationFn: (title: string) =>
       createColumn(boardId!, title, boardData?.columns.length || 0),
@@ -120,7 +136,6 @@ export const BoardDetailPage: React.FC = () => {
     },
   });
 
-  // Мутации задач
   const addTaskMutation = useMutation({
     mutationFn: ({ colId, title }: { colId: string; title: string }) => {
       const col = boardData?.columns.find((c) => c.id === colId);
@@ -141,7 +156,7 @@ export const BoardDetailPage: React.FC = () => {
     },
   });
 
-  // --- ЛОГИКА DRAG & DROP (P0 ИСПРАВЛЕНИЕ) ---
+  // --- ЛОГИКА ПЕРЕТАСКИВАНИЯ ---
 
   const findColumnByTaskId = (taskId: string, columns: ColumnWithTasks[]) => {
     return columns.find((c) => c.tasks.some((t) => t.id === taskId));
@@ -156,7 +171,6 @@ export const BoardDetailPage: React.FC = () => {
     if (task) setActiveTask(task);
   };
 
-  // DragOver: только визуальный перенос между разными колонками во время перетаскивания
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
@@ -171,7 +185,6 @@ export const BoardDetailPage: React.FC = () => {
       const sourceCol = findColumnByTaskId(activeId, old.columns);
       const targetCol = findColumnById(overId, old.columns) || findColumnByTaskId(overId, old.columns);
 
-      // Если в пределах одной колонки — DragOver не трогаем, перестановку сделает arrayMove в DragEnd
       if (!sourceCol || !targetCol || sourceCol.id === targetCol.id) return old;
 
       const activeTaskItem = sourceCol.tasks.find((t: TaskWithAssignee) => t.id === activeId);
@@ -207,7 +220,6 @@ export const BoardDetailPage: React.FC = () => {
     });
   };
 
-  // DragEnd: фиксация порядка, нормализация position и вызов пакетного RPC
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveTask(null);
@@ -220,63 +232,56 @@ export const BoardDetailPage: React.FC = () => {
     const currentBoard = queryClient.getQueryData<any>(['board', boardId]);
     if (!currentBoard) return;
 
-    // Определяем колонку, в которой сейчас находится задача
-    const currentCol = findColumnByTaskId(activeId, currentBoard.columns);
-    if (!currentCol) return;
+    const sourceCol = findColumnByTaskId(activeId, currentBoard.columns);
+    const targetCol = findColumnByTaskId(overId, currentBoard.columns) || findColumnById(overId, currentBoard.columns);
 
-    const oldIndex = currentCol.tasks.findIndex((t: TaskWithAssignee) => t.id === activeId);
-    let newIndex = currentCol.tasks.findIndex((t: TaskWithAssignee) => t.id === overId);
+    if (!sourceCol || !targetCol) return;
 
-    // Если бросили на пустую область колонки
-    if (newIndex === -1) {
-      newIndex = currentCol.tasks.length - 1;
-    }
+    // СЦЕНАРИЙ 1: Перестановка внутри одной колонки
+    if (sourceCol.id === targetCol.id) {
+      const oldIndex = sourceCol.tasks.findIndex((t: TaskWithAssignee) => t.id === activeId);
+      const newIndex = sourceCol.tasks.findIndex((t: TaskWithAssignee) => t.id === overId);
 
-    let nextBoardState = currentBoard;
-    const updates: TaskPositionUpdate[] = [];
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
 
-    // СЦЕНАРИЙ 1: Перестановка внутри одной и той же колонки
-    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-      const reordered = arrayMove(currentCol.tasks, oldIndex, newIndex);
+      const reorderedTasks = arrayMove(sourceCol.tasks, oldIndex, newIndex).map((t, idx) => ({
+        ...t,
+        position: idx,
+      }));
 
-      // Нормализуем position от 0 до N
-      reordered.forEach((task, idx) => {
-        updates.push({
-          id: task.id,
-          column_id: currentCol.id,
-          position: idx,
-        });
-      });
+      const updates: TaskPositionUpdate[] = reorderedTasks.map((t) => ({
+        id: t.id,
+        column_id: sourceCol.id,
+        position: t.position,
+      }));
 
-      nextBoardState = {
+      queryClient.setQueryData(['board', boardId], {
         ...currentBoard,
         columns: currentBoard.columns.map((c: ColumnWithTasks) =>
-          c.id === currentCol.id ? { ...c, tasks: reordered } : c
+          c.id === sourceCol.id ? { ...c, tasks: reorderedTasks } : c
         ),
-      };
-    } else {
-      // СЦЕНАРИЙ 2: Перенос между колонками (или завершение драга)
-      // Нормализуем все задачи колонки, чтобы позиции шли строго 0, 1, 2...
-      currentCol.tasks.forEach((task: TaskWithAssignee, idx: number) => {
-        updates.push({
-          id: task.id,
-          column_id: currentCol.id,
-          position: idx,
-        });
       });
-    }
 
-    // Оптимистично обновляем кэш в React
-    queryClient.setQueryData(['board', boardId], nextBoardState);
-
-    // Сохраняем изменения в БД пачкой
-    if (updates.length > 0) {
       try {
         await batchReorderTasks(updates);
-      } catch (err: any) {
-        toast.error('Не удалось сохранить порядок задач');
+      } catch (err) {
         queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       }
+      return;
+    }
+
+    // СЦЕНАРИЙ 2: Перенос между разными колонками
+    const targetTasks = [...targetCol.tasks];
+    const updates: TaskPositionUpdate[] = targetTasks.map((t, idx) => ({
+      id: t.id,
+      column_id: targetCol.id,
+      position: idx,
+    }));
+
+    try {
+      await batchReorderTasks(updates);
+    } catch (err) {
+      queryClient.invalidateQueries({ queryKey: ['board', boardId] });
     }
   };
 
@@ -311,7 +316,6 @@ export const BoardDetailPage: React.FC = () => {
     <div className="flex h-screen flex-col overflow-hidden bg-slate-50">
       <Navbar />
 
-      {/* Панель инструментов: Название, Поиск, Фильтр и Участники */}
       <div className="border-b border-gray-200 bg-white px-6 py-2.5 shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -326,7 +330,6 @@ export const BoardDetailPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Поиск задач */}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
               <input
@@ -347,7 +350,6 @@ export const BoardDetailPage: React.FC = () => {
               )}
             </div>
 
-            {/* Фильтр по приоритету */}
             <div className="flex items-center gap-1.5">
               <Filter className="h-3.5 w-3.5 text-gray-400" />
               <select
@@ -362,7 +364,6 @@ export const BoardDetailPage: React.FC = () => {
               </select>
             </div>
 
-            {/* Кнопка участников */}
             <button
               onClick={() => setIsInviteModalOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 shadow-xs"
@@ -374,11 +375,10 @@ export const BoardDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Рабочая область канбан-доски */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={collisionDetectionStrategy}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
@@ -447,7 +447,6 @@ export const BoardDetailPage: React.FC = () => {
         </DndContext>
       </div>
 
-      {/* Модалка деталей задачи */}
       {currentSelectedTask && (
         <TaskModal
           task={currentSelectedTask}
@@ -457,7 +456,6 @@ export const BoardDetailPage: React.FC = () => {
         />
       )}
 
-      {/* Модалка участников */}
       {isInviteModalOpen && (
         <InviteModal
           boardId={boardId!}

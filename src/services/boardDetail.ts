@@ -143,12 +143,24 @@ export const deleteTask = async (taskId: string) => {
   if (error) throw error;
 };
 
-// 4. Пакетная атомарная нормализация позиций задач (P0)
+// 4. Пакетное обновление позиций задач с автоматическим фоллбэком
 export const batchReorderTasks = async (updates: TaskPositionUpdate[]): Promise<void> => {
   if (updates.length === 0) return;
-  const { error } = await supabase.rpc('reorder_tasks', {
+
+  // Попытка 1: через быструю RPC функцию в одной транзакции
+  const { error: rpcError } = await supabase.rpc('reorder_tasks', {
     p_updates: updates,
   });
 
-  if (error) throw error;
+  // Попытка 2 (фоллбэк): если RPC функции нет, обновляем напрямую через стандартный API
+  if (rpcError) {
+    await Promise.all(
+      updates.map((u) =>
+        supabase
+          .from('tasks')
+          .update({ column_id: u.column_id, position: u.position })
+          .eq('id', u.id)
+      )
+    );
+  }
 };

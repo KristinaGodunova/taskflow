@@ -37,7 +37,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
       <div
         ref={setNodeRef}
         style={style}
-        className="h-24 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/50 opacity-60"
+        className="h-20 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/50 opacity-40"
       />
     );
   }
@@ -62,7 +62,6 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
 
   const pConfig = priorityStyles[task.priority] || priorityStyles.medium;
 
-  // Форматирование даты и времени по локальному времени пользователя
   const formatDateTime = (dateStr: string) => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
@@ -75,23 +74,19 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
     <div
       ref={setNodeRef}
       style={style}
+      {...attributes}
+      {...listeners}
       onClick={onClick}
-      className={`group relative flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs transition hover:border-slate-300 hover:shadow-md cursor-pointer ${
-        isOverlay ? 'rotate-1 scale-105 shadow-xl ring-2 ring-blue-500 cursor-grabbing bg-white' : ''
+      className={`group relative flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs transition hover:border-slate-300 hover:shadow-md cursor-grab active:cursor-grabbing select-none ${
+        isOverlay ? 'rotate-2 scale-105 shadow-2xl ring-2 ring-blue-500 cursor-grabbing bg-white z-50' : ''
       }`}
     >
-      {/* Верхняя строка: Заголовок и кнопка удаления */}
+      {/* Верхняя строка */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-start gap-1.5 flex-1 min-w-0">
-          <button
-            {...attributes}
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}
-            className="cursor-grab text-slate-300 hover:text-slate-600 active:cursor-grabbing p-0.5 mt-0.5"
-            title="Перетащить"
-          >
-            <GripVertical className="h-3.5 w-3.5" />
-          </button>
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          <span className="text-slate-300 group-hover:text-slate-500 transition mt-0.5 shrink-0">
+            <GripVertical className="h-4 w-4" />
+          </span>
           <p className="text-sm font-semibold text-slate-800 break-words line-clamp-2 leading-snug">
             {task.title}
           </p>
@@ -99,11 +94,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
 
         {!isOverlay && (
           <button
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onDelete(task.id);
             }}
-            className="text-slate-300 opacity-0 group-hover:opacity-100 hover:text-rose-600 transition p-1 rounded hover:bg-rose-50"
+            className="text-slate-300 opacity-0 group-hover:opacity-100 hover:text-rose-600 transition p-1 rounded hover:bg-rose-50 shrink-0"
             title="Удалить задачу"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -111,17 +107,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
         )}
       </div>
 
-      {/* Описание задачи (если есть) */}
+      {/* Описание задачи */}
       {task.description && (
-        <p className="text-xs text-slate-500 line-clamp-2 pl-5">
+        <p className="text-xs text-slate-500 line-clamp-2 pl-6">
           {task.description}
         </p>
       )}
 
-      {/* Нижняя панель: Приоритет, Дата со временем и Ответственный */}
+      {/* Нижняя панель */}
       <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs gap-2">
         <div className="flex items-center gap-2">
-          {/* Бейдж приоритета */}
           <span
             className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${pConfig.badge}`}
           >
@@ -129,16 +124,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onDelete, onClick, isO
             {pConfig.label}
           </span>
 
-          {/* Дата и время дедлайна */}
           {task.due_date && (
-            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-500" title="Срок выполнения">
+            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-500" title="Дедлайн">
               <Clock className="h-3 w-3 text-slate-400" />
               <span>{formatDateTime(task.due_date)}</span>
             </div>
           )}
         </div>
 
-        {/* Ответственный исполнитель */}
         {task.assignee ? (
           <div
             className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-0.5 pr-2"
