@@ -184,9 +184,19 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
                   comments.map((c) => (
                     <div key={c.id} className="rounded-xl bg-slate-50 p-3 border border-slate-100">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-slate-800">
-                          {c.profile?.name || 'Пользователь'}
-                        </span>
+                        <div className="flex items-center gap-2">
+  <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-200">
+    {c.profile?.avatar_url ? (
+      <img src={c.profile.avatar_url} alt="" className="h-full w-full object-cover" />
+    ) : (
+      <User className="h-3 w-3 text-slate-500" />
+    )}
+  </div>
+  <span className="text-xs font-semibold text-slate-800">
+    {c.profile?.name || 'Пользователь'}
+  </span>
+</div>
+
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] text-slate-400">
                             {new Date(c.created_at).toLocaleString([], {

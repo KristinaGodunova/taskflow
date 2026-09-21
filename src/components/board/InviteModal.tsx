@@ -76,9 +76,14 @@ export const InviteModal: React.FC<InviteModalProps> = ({ boardId, members, isOw
               className="flex items-center justify-between rounded-lg bg-gray-50 p-2.5 border border-gray-100"
             >
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                  <User className="h-4 w-4" />
-                </div>
+                <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-blue-600">
+  {m.profile.avatar_url ? (
+    <img src={m.profile.avatar_url} alt="" className="h-full w-full object-cover" />
+  ) : (
+    <User className="h-4 w-4" />
+  )}
+</div>
+
                 <span className="text-sm font-medium text-gray-800">
                   {m.profile.name || 'Пользователь'}
                 </span>
