@@ -19,7 +19,13 @@ export interface BoardFullData {
   columns: ColumnWithTasks[];
 }
 
-// 1. Получить доску, её колонки и задачи с исполнителями
+export interface TaskPositionUpdate {
+  id: string;
+  column_id: string;
+  position: number;
+}
+
+// 1. Получение доски с колонками и задачами (сортировка по position)
 export const getBoardDetails = async (boardId: string): Promise<BoardFullData> => {
   const { data: board, error: boardError } = await supabase
     .from('boards')
@@ -49,7 +55,6 @@ export const getBoardDetails = async (boardId: string): Promise<BoardFullData> =
 
     if (taskError) throw taskError;
 
-    // Подтягиваем профили исполнителей
     const assigneeIds = Array.from(
       new Set((taskData || []).map((t) => t.assignee_id).filter(Boolean))
     ) as string[];
@@ -72,7 +77,7 @@ export const getBoardDetails = async (boardId: string): Promise<BoardFullData> =
 
   const columnsWithTasks: ColumnWithTasks[] = (columns || []).map((col) => ({
     ...col,
-    tasks: tasks.filter((t) => t.column_id === col.id),
+    tasks: tasks.filter((t) => t.column_id === col.id).sort((a, b) => a.position - b.position),
   }));
 
   return {
@@ -81,6 +86,7 @@ export const getBoardDetails = async (boardId: string): Promise<BoardFullData> =
   };
 };
 
+// 2. Управление колонками
 export const createColumn = async (boardId: string, title: string, position: number) => {
   const { data, error } = await supabase
     .from('columns')
@@ -110,6 +116,7 @@ export const deleteColumn = async (columnId: string) => {
   if (error) throw error;
 };
 
+// 3. Управление задачами
 export const createTask = async (columnId: string, title: string, createdBy: string, position: number) => {
   const { data, error } = await supabase
     .from('tasks')
@@ -136,11 +143,12 @@ export const deleteTask = async (taskId: string) => {
   if (error) throw error;
 };
 
-export const updateTaskPosition = async (taskId: string, columnId: string, position: number) => {
-  const { error } = await supabase
-    .from('tasks')
-    .update({ column_id: columnId, position })
-    .eq('id', taskId);
+// 4. Пакетная атомарная нормализация позиций задач (P0)
+export const batchReorderTasks = async (updates: TaskPositionUpdate[]): Promise<void> => {
+  if (updates.length === 0) return;
+  const { error } = await supabase.rpc('reorder_tasks', {
+    p_updates: updates,
+  });
 
   if (error) throw error;
 };
