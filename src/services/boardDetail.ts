@@ -149,18 +149,6 @@ export const deleteTask = async (taskId: string) => {
 export const batchReorderTasks = async (updates: TaskPositionUpdate[]): Promise<void> => {
   if (updates.length === 0) return;
 
-  const { error: rpcError } = await supabase.rpc('reorder_tasks', {
-    p_updates: updates,
-  });
-
-  if (rpcError) {
-    await Promise.all(
-      updates.map((u) =>
-        supabase
-          .from('tasks')
-          .update({ column_id: u.column_id, position: u.position })
-          .eq('id', u.id)
-      )
-    );
-  }
+  const { error } = await supabase.rpc('reorder_tasks', { p_updates: updates });
+  if (error) throw error;
 };
