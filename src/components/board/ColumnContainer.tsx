@@ -7,6 +7,7 @@ import { Plus, MoreHorizontal, Trash2, Edit2, Check, X } from 'lucide-react';
 
 interface ColumnContainerProps {
   column: ColumnWithTasks;
+  canManageColumns?: boolean; // Доступ к структуре колонок (только owner)
   onAddTask: (columnId: string, title: string) => void;
   onDeleteColumn: (columnId: string) => void;
   onRenameColumn: (columnId: string, newTitle: string) => void;
@@ -16,6 +17,7 @@ interface ColumnContainerProps {
 
 export const ColumnContainer: React.FC<ColumnContainerProps> = ({
   column,
+  canManageColumns = false,
   onAddTask,
   onDeleteColumn,
   onRenameColumn,
@@ -102,44 +104,47 @@ export const ColumnContainer: React.FC<ColumnContainerProps> = ({
           </div>
         )}
 
-        {/* Меню действий колонки */}
-        <div className="relative">
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
-          {showMenu && (
-            <div className="absolute right-0 top-full z-20 mt-1.5 w-40 rounded-xl border border-slate-200 bg-white py-1 shadow-lg animate-in fade-in zoom-in-95 duration-100">
-              <button
-                onClick={() => {
-                  setShowMenu(false);
-                  setIsEditingTitle(true);
-                }}
-                className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                <Edit2 className="h-3.5 w-3.5" />
-                Переименовать
-              </button>
-              <button
-                onClick={() => {
-                  setShowMenu(false);
-                  if (confirm('Удалить эту колонку со всеми задачами?')) {
-                    onDeleteColumn(column.id);
-                  }
-                }}
-                className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Удалить
-              </button>
-            </div>
-          )}
-        </div>
+        {/* Меню действий колонки доступно ТОЛЬКО владельцу (owner) */}
+        {canManageColumns && (
+          <div className="relative">
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition"
+              title="Действия с колонкой"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 top-full z-20 mt-1.5 w-40 rounded-xl border border-slate-200 bg-white py-1 shadow-lg animate-in fade-in zoom-in-95 duration-100">
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    setIsEditingTitle(true);
+                  }}
+                  className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <Edit2 className="h-3.5 w-3.5" />
+                  Переименовать
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    if (confirm('Удалить эту колонку со всеми задачами?')) {
+                      onDeleteColumn(column.id);
+                    }
+                  }}
+                  className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Удалить
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Список задач колонки */}
+      {/* Список задач (доступен для Drag & Drop всем участникам) */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[100px]">
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
           {column.tasks.map((task) => (
@@ -153,7 +158,7 @@ export const ColumnContainer: React.FC<ColumnContainerProps> = ({
         </SortableContext>
       </div>
 
-      {/* Добавление задачи */}
+      {/* Добавление задачи (разрешено роли member) */}
       <div className="p-3 pt-0">
         {isAddingTask ? (
           <form onSubmit={handleCreateTask} className="space-y-2 rounded-xl bg-white p-2.5 border border-slate-200 shadow-sm">

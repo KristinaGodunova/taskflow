@@ -404,6 +404,7 @@ export const BoardDetailPage: React.FC = () => {
               <ColumnContainer
                 key={column.id}
                 column={column}
+                canManageColumns={isOwner}
                 onAddTask={(colId, title) => addTaskMutation.mutate({ colId, title })}
                 onRenameColumn={(colId, title) => renameColumnMutation.mutate({ colId, title })}
                 onDeleteColumn={(colId) => deleteColumnMutation.mutate(colId)}
@@ -412,49 +413,52 @@ export const BoardDetailPage: React.FC = () => {
               />
             ))}
 
-            <div className="w-80 shrink-0">
-              {isAddingCol ? (
-                <div className="rounded-2xl border border-gray-300 bg-slate-100 p-3.5 shadow-sm">
-                  <input
-                    type="text"
-                    autoFocus
-                    placeholder="Название колонки..."
-                    value={newColTitle}
-                    onChange={(e) => setNewColTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newColTitle.trim()) {
-                        addColumnMutation.mutate(newColTitle.trim());
-                      }
-                      if (e.key === 'Escape') setIsAddingCol(false);
-                    }}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none"
-                  />
-                  <div className="mt-2.5 flex items-center gap-2">
-                    <button
-                      onClick={() => newColTitle.trim() && addColumnMutation.mutate(newColTitle.trim())}
-                      disabled={!newColTitle.trim() || addColumnMutation.isPending}
-                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-blue-500 disabled:opacity-50"
-                    >
-                      Создать колонку
-                    </button>
-                    <button
-                      onClick={() => setIsAddingCol(false)}
-                      className="rounded-lg px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-200"
-                    >
-                      Отмена
-                    </button>
+            {/* Добавление новой колонки доступно только владельцу доски */}
+            {isOwner && (
+              <div className="w-80 shrink-0">
+                {isAddingCol ? (
+                  <div className="rounded-2xl border border-gray-300 bg-slate-100 p-3.5 shadow-sm">
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Название колонки..."
+                      value={newColTitle}
+                      onChange={(e) => setNewColTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && newColTitle.trim()) {
+                          addColumnMutation.mutate(newColTitle.trim());
+                        }
+                        if (e.key === 'Escape') setIsAddingCol(false);
+                      }}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none"
+                    />
+                    <div className="mt-2.5 flex items-center gap-2">
+                      <button
+                        onClick={() => newColTitle.trim() && addColumnMutation.mutate(newColTitle.trim())}
+                        disabled={!newColTitle.trim() || addColumnMutation.isPending}
+                        className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow hover:bg-blue-500 disabled:opacity-50"
+                      >
+                        Создать колонку
+                      </button>
+                      <button
+                        onClick={() => setIsAddingCol(false)}
+                        className="rounded-lg px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-200"
+                      >
+                        Отмена
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setIsAddingCol(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-300 p-4 text-sm font-semibold text-gray-500 hover:border-gray-400 hover:bg-slate-100/60 transition"
-                >
-                  <Plus className="h-4 w-4" />
-                  Добавить колонку
-                </button>
-              )}
-            </div>
+                ) : (
+                  <button
+                    onClick={() => setIsAddingCol(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-300 p-4 text-sm font-semibold text-gray-500 hover:border-gray-400 hover:bg-slate-100/60 transition"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Добавить колонку
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <DragOverlay>
