@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '../../providers/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 
 export const ProtectedRoute: React.FC = () => {

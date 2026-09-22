@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../providers/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { getBoards, createBoard, deleteBoard } from '../services/boards';
 import { Navbar } from '../components/shared/Navbar';
 import { Plus, Trash2, LayoutGrid, Clock, Loader2 } from 'lucide-react';

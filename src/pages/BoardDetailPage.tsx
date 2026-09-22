@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useAuth } from '../providers/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { useRealtimeBoard } from '../hooks/useRealtimeBoard';
 import { useBoard } from '../hooks/useBoard';
 import { useBoardMutations } from '../hooks/useBoardMutations';
@@ -59,7 +59,8 @@ export const BoardDetailPage: React.FC = () => {
         return matchesSearch && matchesPriority;
       }),
     }));
-  }, [boardData?.columns, searchQuery, priorityFilter]);
+  }, [boardData, searchQuery, priorityFilter]);
+
 
   if (isLoading) {
     return (
@@ -108,9 +109,7 @@ export const BoardDetailPage: React.FC = () => {
         columns={filteredColumns}
         isOwner={isOwner}
         dnd={dnd}
-        onAddTask={(colId, title, position) =>
-          mutations.addTaskMutation.mutate({ colId, title, position })
-        }
+        onAddTask={(colId, title) => mutations.addTaskMutation.mutate({ colId, title })}
         onRenameColumn={(colId, title) =>
           mutations.renameColumnMutation.mutate({ colId, title })
         }

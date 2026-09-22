@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../../providers/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import {
   updateTaskDetails,
   getTaskComments,
@@ -34,6 +34,13 @@ interface TaskModalProps {
 export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, onClose }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  useEffect(() => {
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose();
+  };
+  window.addEventListener('keydown', onKey);
+  return () => window.removeEventListener('keydown', onKey);
+}, [onClose]);
 
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || '');
@@ -91,14 +98,18 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
   });
 
   const handleBlurSave = () => {
-    updateTaskMutation.mutate({
-      title: title.trim(),
-      description: description.trim() || null,
-      priority,
-      due_date: dueDate || null,
-      assignee_id: assigneeId || null,
-    });
-  };
+  const nextTitle = title.trim();
+  const nextDescription = description.trim() || null;
+
+  if (!nextTitle) {
+    setTitle(task.title);
+    return;
+  }
+  if (nextTitle === task.title && nextDescription === (task.description || null)) return;
+
+  updateTaskMutation.mutate({ title: nextTitle, description: nextDescription });
+};
+
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +121,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({ task, members, boardId, on
   const todayDate = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+    <div
+  className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs animate-in fade-in duration-150"
+  onClick={(e) => {
+    if (e.target === e.currentTarget) onClose();
+  }}
+>
+
       <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl overflow-hidden border border-slate-200">
         
         {/* Шапка модального окна */}

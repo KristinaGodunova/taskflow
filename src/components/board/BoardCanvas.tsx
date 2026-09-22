@@ -10,7 +10,8 @@ interface BoardCanvasProps {
   columns: ColumnWithTasks[];
   isOwner: boolean;
   dnd: ReturnType<typeof useTaskDnD>;
-  onAddTask: (columnId: string, title: string, position: number) => void;
+  onAddTask: (columnId: string, title: string) => void;
+
   onRenameColumn: (colId: string, title: string) => void;
   onDeleteColumn: (colId: string) => void;
   onDeleteTask: (taskId: string) => void;
@@ -58,7 +59,8 @@ export const BoardCanvas: React.FC<BoardCanvasProps> = ({
               key={column.id}
               column={column}
               canManageColumns={isOwner}
-              onAddTask={(colId, title) => onAddTask(colId, title, column.tasks.length)}
+              onAddTask={onAddTask}
+
               onRenameColumn={onRenameColumn}
               onDeleteColumn={onDeleteColumn}
               onDeleteTask={onDeleteTask}

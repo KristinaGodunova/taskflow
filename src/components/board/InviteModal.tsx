@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { inviteMemberByEmail, type BoardMemberInfo } from '../../services/taskModal';
+import { inviteMemberByEmail, removeMember, type BoardMemberInfo } from '../../services/taskModal';
+import { getErrorMessage } from '../../utils/errors';
 import { X, UserPlus, Shield, User, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,6 +31,14 @@ export const InviteModal: React.FC<InviteModalProps> = ({ boardId, members, isOw
     if (!email.trim()) return;
     inviteMutation.mutate(email.trim());
   };
+const removeMutation = useMutation({
+  mutationFn: (userId: string) => removeMember(boardId, userId),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['board-members', boardId] });
+    toast.success('Участник удалён');
+  },
+  onError: (error: unknown) => toast.error(getErrorMessage(error)),
+});
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -88,10 +97,25 @@ export const InviteModal: React.FC<InviteModalProps> = ({ boardId, members, isOw
                   {m.profile.name || 'Пользователь'}
                 </span>
               </div>
-              <span className="flex items-center gap-1 rounded bg-slate-200/80 px-2 py-0.5 text-xs font-semibold text-gray-600">
-                {m.role === 'owner' && <Shield className="h-3 w-3 text-amber-600" />}
-                {m.role === 'owner' ? 'Владелец' : 'Участник'}
-              </span>
+              <div className="flex items-center gap-2">
+  <span className="flex items-center gap-1 rounded bg-slate-200/80 px-2 py-0.5 text-xs font-semibold text-gray-600">
+    {m.role === 'owner' && <Shield className="h-3 w-3 text-amber-600" />}
+    {m.role === 'owner' ? 'Владелец' : 'Участник'}
+  </span>
+  {isOwner && m.role !== 'owner' && (
+    <button
+      onClick={() => {
+        if (confirm('Удалить участника с доски?')) removeMutation.mutate(m.user_id);
+      }}
+      disabled={removeMutation.isPending}
+      className="rounded p-1 text-gray-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+      title="Удалить участника"
+    >
+      <X className="h-4 w-4" />
+    </button>
+  )}
+</div>
+
             </div>
           ))}
         </div>

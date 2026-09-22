@@ -8,6 +8,8 @@ import {
 } from '../services/boardDetail';
 import { getErrorMessage } from '../utils/errors';
 import { toast } from 'sonner';
+import type { BoardFullData } from '../services/boardDetail';
+
 
 interface UseBoardMutationsProps {
   boardId: string;
@@ -50,8 +52,12 @@ export const useBoardMutations = ({ boardId, userId, columnsCount }: UseBoardMut
   });
 
   const addTaskMutation = useMutation({
-    mutationFn: ({ colId, title, position }: { colId: string; title: string; position: number }) =>
-      createTask(colId, title, userId || '', position),
+  mutationFn: ({ colId, title }: { colId: string; title: string }) => {
+    const board = queryClient.getQueryData<BoardFullData>(['board', boardId]);
+    const position = board?.columns.find((c) => c.id === colId)?.tasks.length ?? 0;
+    return createTask(colId, title, userId || '', position);
+  },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['board', boardId] });
       toast.success('Задача создана');

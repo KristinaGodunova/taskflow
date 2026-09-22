@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '../../providers/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { getProfile } from '../../services/profile';
 import { KanbanSquare, LogOut, User } from 'lucide-react';
 

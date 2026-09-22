@@ -139,3 +139,13 @@ export const inviteMemberByEmail = async (boardId: string, email: string) => {
   if (!result.success) throw new Error(result.error || 'Ошибка приглашения');
   return result;
 };
+
+export const removeMember = async (boardId: string, userId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('board_members')
+    .delete()
+    .eq('board_id', boardId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+};

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../providers/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import {
   getProfile,
   updateProfileName,

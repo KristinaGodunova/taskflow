@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../providers/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { toast } from 'sonner';
 import { Loader2, LogIn } from 'lucide-react';
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../providers/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { toast } from 'sonner';
 import { Loader2, UserPlus, MailCheck, ArrowRight } from 'lucide-react';
 
